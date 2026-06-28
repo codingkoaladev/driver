@@ -14,6 +14,8 @@ use Driver\System\Logs\LoggerInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
+use function escapeshellarg;
+
 class Import extends Command implements CommandInterface
 {
     private LocalConnectionLoader $localConnection;
@@ -39,7 +41,7 @@ class Import extends Command implements CommandInterface
         $this->properties = $properties;
         $this->logger = $logger;
         $this->output = $output;
-        return parent::__construct('mysql-sandbox-import');
+        parent::__construct('mysql-sandbox-import');
     }
 
     public function go(TransportInterface $transport, EnvironmentInterface $environment): TransportInterface
@@ -74,13 +76,13 @@ class Import extends Command implements CommandInterface
     public function assembleCommand(string $path): string
     {
         $command = implode(' ', [
-            "gunzip < $path |",
-            "mysql --user={$this->remoteConnection->getUser()}",
-            "--password={$this->remoteConnection->getPassword()}",
-            "--host={$this->remoteConnection->getHost()}",
-            "--port={$this->remoteConnection->getPort()}",
-            $this->remoteConnection->useSsl() ? "--ssl-ca={$this->ssl->getPath()}" : "",
-            "{$this->remoteConnection->getDatabase()}"
+            'gunzip < ' . escapeshellarg($path) . ' |',
+            'mysql --user=' . escapeshellarg($this->remoteConnection->getUser()),
+            '--password=' . escapeshellarg($this->remoteConnection->getPassword()),
+            '--host=' . escapeshellarg($this->remoteConnection->getHost()),
+            '--port=' . escapeshellarg($this->remoteConnection->getPort()),
+            $this->remoteConnection->useSsl() ? '--ssl-ca=' . escapeshellarg($this->ssl->getPath()) : "",
+            escapeshellarg($this->remoteConnection->getDatabase())
         ]);
 
         if (

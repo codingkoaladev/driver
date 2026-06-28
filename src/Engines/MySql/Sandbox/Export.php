@@ -16,11 +16,11 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
 use function array_key_exists;
+use function escapeshellarg;
 
 class Export extends Command implements CommandInterface, CleanupInterface
 {
     private RemoteConnectionInterface $connection;
-    private Ssl $ssl;
     private Random $random;
     /** @var array<string, string> */
     private array $filenames = [];
@@ -35,7 +35,6 @@ class Export extends Command implements CommandInterface, CleanupInterface
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification
     public function __construct(
         RemoteConnectionInterface $connection,
-        Ssl $ssl,
         Random $random,
         Configuration $configuration,
         Utilities $utilities,
@@ -43,14 +42,13 @@ class Export extends Command implements CommandInterface, CleanupInterface
         array $properties = []
     ) {
         $this->connection = $connection;
-        $this->ssl = $ssl;
         $this->random = $random;
         $this->configuration = $configuration;
         $this->properties = $properties;
         $this->utilities = $utilities;
         $this->output = $output;
 
-        return parent::__construct('mysql-sandbox-export');
+        parent::__construct('mysql-sandbox-export');
     }
 
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification
@@ -109,19 +107,20 @@ class Export extends Command implements CommandInterface, CleanupInterface
     {
         $filename = $this->getFilename($environmentName);
         $command = implode(' ', array_merge([
-            "mysqldump --user={$this->connection->getUser()}",
-            "--password={$this->connection->getPassword()}",
-            "--host={$this->connection->getHost()}",
-            "--port={$this->connection->getPort()}",
+            'mysqldump --user=' . escapeshellarg($this->connection->getUser()),
+            '--password=' . escapeshellarg($this->connection->getPassword()),
+            '--host=' . escapeshellarg($this->connection->getHost()),
+            '--port=' . escapeshellarg($this->connection->getPort()),
             "--no-tablespaces"
         ], $this->getIgnoredTables($ignoredTables)));
-        $command .= " {$this->connection->getDatabase()} ";
+        $command .= ' ' . escapeshellarg($this->connection->getDatabase()) . ' ';
         $command .= "| sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g' ";
         if ($this->compressOutput()) {
             $command .= "| gzip --best ";
         }
-        $command .= "> $filename;";
-        $command .= ($this->compressOutput() ? "cat" : "gunzip < ") . " $triggersDumpFile >> $filename;";
+        $command .= '> ' . escapeshellarg($filename) . ';';
+        $command .= ($this->compressOutput() ? 'cat ' : 'gunzip < ')
+            . escapeshellarg($triggersDumpFile) . ' >> ' . escapeshellarg($filename) . ';';
 
         return $command;
     }
@@ -137,7 +136,7 @@ class Export extends Command implements CommandInterface, CleanupInterface
         }, $ignoredTables));
 
         return array_map(function ($tableName) {
-            return "--ignore-table=" . $this->connection->getDatabase() . "." . $tableName;
+            return '--ignore-table=' . escapeshellarg($this->connection->getDatabase() . "." . $tableName);
         }, $tableNames);
     }
 

@@ -16,7 +16,7 @@ class SandboxTest extends TestCase
         $creator = function ($serviceType, $arguments) {
             $type = '\\Aws\\Rds\\RdsClient';
             $stub = $this->getMockBuilder($type)
-                ->setMethods(['describeDBInstances'])
+                ->addMethods(['describeDBInstances'])
                 ->disableOriginalConstructor()
                 ->setConstructorArgs([$arguments])
                 ->getMock();

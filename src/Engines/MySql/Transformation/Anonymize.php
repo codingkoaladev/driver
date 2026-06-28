@@ -78,7 +78,7 @@ class Anonymize extends Command implements CommandInterface
     }
 
     /**
-     * @param array<string, array<string, string>> $columns
+     * @param array<string, mixed> $columns
      */
     private function anonymize(string $table, array $columns): void
     {
@@ -87,7 +87,7 @@ class Anonymize extends Command implements CommandInterface
         if (isset($columns['truncate']) && $columns['truncate'] === true) {
             try {
                 $connection->query("SET foreign_key_checks = 0;");
-                $connection->query("TRUNCATE ${table};");
+                $connection->query("TRUNCATE {$table};");
                 $connection->query("SET foreign_key_checks = 1;");
             } catch (\Exception $ex) {
                 // Do nothing
@@ -95,12 +95,16 @@ class Anonymize extends Command implements CommandInterface
         }
 
         foreach ($columns as $columnName => $description) {
+            if (!is_array($description)) {
+                continue;
+            }
+
             try {
                 $method = $this->getTypeMethod($description);
                 $select = $this->$method($description['type'] ?? 'general', $columnName, $table);
 
-                $query = "UPDATE `${table}` SET `${columnName}` = "
-                    . "${select} WHERE `${table}`.`${columnName}` IS NOT NULL;";
+                $query = "UPDATE `{$table}` SET `{$columnName}` = "
+                    . "{$select} WHERE `{$table}`.`{$columnName}` IS NOT NULL;";
 
                 $connection->query($query);
             } catch (\Exception $ex) {
@@ -116,7 +120,7 @@ class Anonymize extends Command implements CommandInterface
     private function queryEmail(string $type, string $columnName): string
     {
         $salt = $this->seed->getSalt();
-        return "CONCAT(MD5(CONCAT(\"${salt}\", ${columnName})), \"@\", SUBSTRING({$columnName}, "
+        return "CONCAT(MD5(CONCAT(\"{$salt}\", {$columnName})), \"@\", SUBSTRING({$columnName}, "
             . "LOCATE('@', {$columnName}) + 1))";
     }
 
@@ -129,11 +133,11 @@ class Anonymize extends Command implements CommandInterface
         $table = Seed::FAKE_USER_TABLE;
         $salt = $this->seed->getSalt();
         $count = $this->seed->getCount();
-        return "(SELECT ${table}.${type} FROM ${table} WHERE ${table}.id = (SELECT 1 + MOD("
-            . "ORD(SUBSTRING(MD5(CONCAT(\"${salt}\", ${mainTable}.${columnName})), 1, 1)) + "
-            . "ORD(SUBSTRING(MD5(CONCAT(\"${salt}\", ${mainTable}.${columnName})), 2, 1)) + "
-            . "ORD(SUBSTRING(MD5(CONCAT(\"${salt}\", ${mainTable}.${columnName})), 3, 1)) * "
-            . "ORD(SUBSTRING(MD5(CONCAT(\"${salt}\", ${mainTable}.${columnName})), 4, 1)), ${count})) LIMIT 1)";
+        return "(SELECT {$table}.{$type} FROM {$table} WHERE {$table}.id = (SELECT 1 + MOD("
+            . "ORD(SUBSTRING(MD5(CONCAT(\"{$salt}\", {$mainTable}.{$columnName})), 1, 1)) + "
+            . "ORD(SUBSTRING(MD5(CONCAT(\"{$salt}\", {$mainTable}.{$columnName})), 2, 1)) + "
+            . "ORD(SUBSTRING(MD5(CONCAT(\"{$salt}\", {$mainTable}.{$columnName})), 3, 1)) * "
+            . "ORD(SUBSTRING(MD5(CONCAT(\"{$salt}\", {$mainTable}.{$columnName})), 4, 1)), {$count})) LIMIT 1)";
     }
 
     private function queryEmpty(): string

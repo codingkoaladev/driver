@@ -9,7 +9,6 @@ use Driver\Engines\S3\Download;
 use Driver\Pipeline\Environment\EnvironmentInterface;
 use Driver\Pipeline\Transport\Status;
 use Driver\Pipeline\Transport\TransportInterface;
-use Driver\System\Configuration;
 use Driver\System\LocalConnectionLoader;
 use Driver\System\Logs\LoggerInterface;
 use PDO;
@@ -17,19 +16,19 @@ use PDOException;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
+use function escapeshellarg;
+
 class Primary extends Command implements CommandInterface
 {
     private LocalConnectionLoader $localConnection;
     // phpcs:ignore SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification
     private array $properties;
     private LoggerInterface $logger;
-    private Configuration $configuration;
     private ConsoleOutput $output;
 
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification
     public function __construct(
         LocalConnectionLoader $localConnection,
-        Configuration $configuration,
         LoggerInterface $logger,
         ConsoleOutput $output,
         array $properties = []
@@ -37,9 +36,8 @@ class Primary extends Command implements CommandInterface
         $this->localConnection = $localConnection;
         $this->properties = $properties;
         $this->logger = $logger;
-        $this->configuration = $configuration;
         $this->output = $output;
-        return parent::__construct('import-data-from-system-primary');
+        parent::__construct('import-data-from-system-primary');
     }
 
     public function go(TransportInterface $transport, EnvironmentInterface $environment): TransportInterface
@@ -127,12 +125,12 @@ class Primary extends Command implements CommandInterface
     private function getImportCommand(string $filename): array
     {
         return [
-            "mysql -u \"{$this->localConnection->getUser()}\"",
-            "-h {$this->localConnection->getHost()}",
-            "--password=\"{$this->localConnection->getPassword()}\"",
-            "{$this->localConnection->getDatabase()}",
+            'mysql -u ' . escapeshellarg($this->localConnection->getUser()),
+            '-h ' . escapeshellarg($this->localConnection->getHost()),
+            '--password=' . escapeshellarg($this->localConnection->getPassword()),
+            escapeshellarg($this->localConnection->getDatabase()),
             "<",
-            $filename
+            escapeshellarg($filename)
         ];
     }
 
@@ -157,8 +155,8 @@ class Primary extends Command implements CommandInterface
                     }
 
                     try {
-                        $statement = $connection->prepare("SELECT ${columnNames} FROM ${tableName} "
-                            . "WHERE ${columnName} LIKE :like");
+                        $statement = $connection->prepare("SELECT {$columnNames} FROM {$tableName} "
+                            . "WHERE {$columnName} LIKE :like");
                         if ($statement === false) {
                             continue;
                         }
@@ -185,7 +183,7 @@ class Primary extends Command implements CommandInterface
         $connection = $this->getConnection();
         $columns = [];
 
-        $statement = $connection->prepare("SHOW COLUMNS FROM ${tableName}");
+        $statement = $connection->prepare("SHOW COLUMNS FROM {$tableName}");
         if (!$statement->execute()) {
             return [];
         }
@@ -223,11 +221,11 @@ class Primary extends Command implements CommandInterface
                 $columnNames = $this->flattenColumns($tableColumnNames);
                 $columnFillers = implode(', ', array_fill(0, count($row), '?'));
                 $valuesList = implode(', ', array_map(function ($key) {
-                    return "`${key}` = VALUES(`${key}`)";
+                    return "`{$key}` = VALUES(`{$key}`)";
                 }, array_keys($row)));
 
-                $statement = $connection->prepare("INSERT INTO ${tableName} (${columnNames}) VALUES(${columnFillers})"
-                    . " ON DUPLICATE KEY UPDATE ${valuesList}");
+                $statement = $connection->prepare("INSERT INTO {$tableName} ({$columnNames}) VALUES({$columnFillers})"
+                    . " ON DUPLICATE KEY UPDATE {$valuesList}");
                 $statement->execute(array_values($row));
             }
         }

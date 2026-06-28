@@ -38,7 +38,6 @@ class FactoryTest extends TestCase
     private function runInaccessibleFunction(string $name, ...$arguments)
     {
         $method = new \ReflectionMethod($this->factory, $name);
-        $method->setAccessible(true);
 
         return $method->invoke($this->factory, ...$arguments);
     }

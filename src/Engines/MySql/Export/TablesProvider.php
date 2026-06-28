@@ -6,9 +6,10 @@ namespace Driver\Engines\MySql\Export;
 
 use Driver\Engines\ConnectionInterface;
 use Driver\Pipeline\Environment\EnvironmentInterface;
+use PDO;
+use RuntimeException;
 
-use function exec;
-use function explode;
+use function array_map;
 
 class TablesProvider
 {
@@ -17,15 +18,17 @@ class TablesProvider
      */
     public function getAllTables(ConnectionInterface $connection): array
     {
-        $command = "mysql --user=\"{$connection->getUser()}\" --password=\"{$connection->getPassword()}\" "
-            . "--host=\"{$connection->getHost()}\" --skip-column-names "
-            . "-e \"SET SESSION group_concat_max_len = 1000000; SELECT GROUP_CONCAT(table_name SEPARATOR ',') "
-            . " FROM information_schema.tables WHERE table_schema = '{$connection->getDatabase()}';\"";
-        $result = exec($command);
-        if (!$result) {
-            throw new \RuntimeException('Unable to get table names');
+        $statement = $connection->getConnection()->prepare(
+            'SELECT table_name FROM information_schema.tables WHERE table_schema = :database ORDER BY table_name'
+        );
+        $statement->execute(['database' => $connection->getDatabase()]);
+
+        $result = $statement->fetchAll(PDO::FETCH_COLUMN);
+        if (!is_array($result) || $result === []) {
+            throw new RuntimeException('Unable to get table names');
         }
-        return explode(",", $result);
+
+        return array_map('strval', $result);
     }
 
     /**

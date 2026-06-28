@@ -44,7 +44,7 @@ class DebugExternalConnection implements RemoteConnectionInterface
     public function getCharset(): string
     {
         if ($charset = $this->getValue('charset', false)) {
-            return $charset;
+            return (string)$charset;
         } else {
             return 'utf8';
         }
@@ -53,7 +53,7 @@ class DebugExternalConnection implements RemoteConnectionInterface
     public function getHost(): string
     {
         if ($host = $this->getValue('host', false)) {
-            return $host;
+            return (string)$host;
         } else {
             return 'localhost';
         }
@@ -62,7 +62,7 @@ class DebugExternalConnection implements RemoteConnectionInterface
     public function getPort(): string
     {
         if ($port = $this->getValue('port', false)) {
-            return $port;
+            return (string)$port;
         } else {
             return '3306';
         }
@@ -75,29 +75,39 @@ class DebugExternalConnection implements RemoteConnectionInterface
 
     public function getDatabase(): string
     {
-        return $this->getValue('database', true);
+        return (string)$this->getValue('database', true);
     }
 
     public function getUser(): string
     {
-        return $this->getValue('username', true);
+        return (string)$this->getValue('user', true, ['username']);
     }
 
     public function getPassword(): string
     {
-        return $this->getValue('password', true);
+        return (string)$this->getValue('password', true);
     }
 
+    /**
+     * @param string[] $fallbackKeys
+     */
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ReturnTypeHint
-    private function getValue(string $key, bool $required)
+    private function getValue(string $key, bool $required, array $fallbackKeys = [])
     {
-        $value = $this->configuration->getNode("connections/mysql_debug/{$key}");
-        if (is_array($value) && $required) {
+        $keys = array_merge([$key], $fallbackKeys);
+        foreach ($keys as $lookupKey) {
+            $value = $this->configuration->getNode("connections/mysql_debug/{$lookupKey}");
+            if ($value !== null && (!is_array($value) || !$required)) {
+                return $value;
+            }
+        }
+
+        if ($required) {
             $this->output->writeln("<error>{$key} is not set. Please set it in a configuration file.</error>");
             throw new \Exception("{$key} is not set. Please set it in a configuration file.");
         }
 
-        return $value;
+        return null;
     }
 
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification

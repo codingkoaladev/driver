@@ -31,7 +31,7 @@ class Primary implements StageInterface
         array $actions,
         string $name,
         CommandFactory $commandFactory,
-        EnvironmentInterface $environment = null
+        ?EnvironmentInterface $environment = null
     ) {
         $this->commandFactory = $commandFactory;
         $this->actions = $this->sortActions($this->initActions($actions));
@@ -107,7 +107,7 @@ class Primary implements StageInterface
         try {
             if (!$this->hasError($transport)) {
                 return $this->verifyTransport($command->go($transport, $this->environment), $command);
-            } elseif ($this->hasErrorHandler($command)) {
+            } elseif ($command instanceof ErrorInterface) {
                 return $this->verifyTransport($command->error($transport, $this->environment), $command);
             } else {
                 return $transport;
@@ -115,11 +115,6 @@ class Primary implements StageInterface
         } catch (\Exception $ex) {
             return $transport->withStatus(new Status(get_class($command), $ex->getMessage(), true));
         }
-    }
-
-    private function hasErrorHandler(CommandInterface $command): bool
-    {
-        return is_a($command, ErrorInterface::class);
     }
 
     private function hasError(TransportInterface $transport): bool
@@ -153,12 +148,6 @@ class Primary implements StageInterface
 
     private function verifyTransport(TransportInterface $transport, CommandInterface $command): TransportInterface
     {
-        if (!$transport) {
-            throw new \Exception(
-                'No Transport object was returned from the last command executed: ' . get_class($command)
-            );
-        }
-
         return $transport;
     }
 }

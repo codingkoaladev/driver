@@ -8,10 +8,10 @@ use Driver\Pipeline\Environment\Manager as EnvironmentManager;
 use Driver\System\Logs\LoggerInterface;
 use Driver\System\Tag;
 use Symfony\Component\Console\Command\Command as ConsoleCommand;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Console\Question\Question;
@@ -27,20 +27,17 @@ class Command extends ConsoleCommand
     private Master $pipeMaster;
     private LoggerInterface $logger;
     private EnvironmentManager $environmentManager;
-    private ConsoleOutput $output;
     private Tag $tag;
 
     public function __construct(
         Master $pipeMaster,
         LoggerInterface $logger,
         EnvironmentManager $environmentManager,
-        ConsoleOutput $output,
         Tag $tag
     ) {
         $this->pipeMaster = $pipeMaster;
         $this->logger = $logger;
         $this->environmentManager = $environmentManager;
-        $this->output = $output;
         $this->tag = $tag;
 
         parent::__construct();
@@ -67,7 +64,7 @@ class Command extends ConsoleCommand
             ->addOption(self::CI, 'ci', InputOption::VALUE_OPTIONAL, 'Run without asking questions');
     }
 
-    protected function execute(InputInterface $input, OutputInterface $output): void
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $output->writeln("<comment>Executing Pipeline Command...</comment>");
         $this->logger->setParams($input, $output);
@@ -79,6 +76,10 @@ class Command extends ConsoleCommand
         } else {
             if (!$input->hasOption(self::CI)) {
                 $helper = $this->getHelper('question');
+                if (!$helper instanceof QuestionHelper) {
+                    return ConsoleCommand::FAILURE;
+                }
+
                 $pipelineQuestion = new Question(
                     '<question> What pipeline do you want to execute? </question> [type enter for default]: ',
                     Master::DEFAULT_NODE
@@ -96,14 +97,19 @@ class Command extends ConsoleCommand
             $transport = $this->pipeMaster->run($pipeLine);
         }
 
-        foreach ($transport->getErrors() as $error) {
+        $errors = $transport->getErrors();
+        foreach ($errors as $error) {
             $output->writeln('<error>' . $error->getNode() . ' - ' . $error->getMessage() . '</error>');
         }
+        return count($errors) === 0 ? ConsoleCommand::SUCCESS : ConsoleCommand::FAILURE;
     }
 
     private function askAboutEnv(InputInterface $input, OutputInterface $output): void
     {
         $helper = $this->getHelper('question');
+        if (!$helper instanceof QuestionHelper) {
+            return;
+        }
 
         if (!$input->getOption(self::ENVIRONMENT)) {
             $envQuestion = new ChoiceQuestion(

@@ -44,7 +44,6 @@ class Reduce extends Command implements CommandInterface
 
     public function go(TransportInterface $transport, EnvironmentInterface $environment): TransportInterface
     {
-        /** @var OutputInterface $output */
         $config = $this->configuration->getNode('reduce/tables');
         $transport->getLogger()->notice("Beginning reducing table rows from reduce.yaml.");
         $this->output->writeln("<comment>Beginning reducing table rows from reduce.yaml.</comment>");
@@ -57,7 +56,7 @@ class Reduce extends Command implements CommandInterface
             $column = $details['column'];
             $statement = $details['statement'];
 
-            $query = "DELETE FROM ${tableName} WHERE ${column} ${statement}";
+            $query = "DELETE FROM {$tableName} WHERE {$column} {$statement}";
 
             try {
                 $this->connection->getConnection()->beginTransaction();

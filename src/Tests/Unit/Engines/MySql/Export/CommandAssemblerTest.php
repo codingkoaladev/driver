@@ -62,12 +62,12 @@ class CommandAssemblerTest extends TestCase
         $this->tablesProviderMock->expects($this->any())->method('getIgnoredTables')->willReturn([]);
         $this->assertSame(
             [
-                "echo '/*!40014 SET @ORG_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;' | gzip >> dump.gz",
-                "mysqldump --user=\"user\" --password=\"password\" --single-transaction --no-tablespaces --no-data --skip-triggers --host=host db | sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g' | gzip >> dump.gz",
-                'mysqldump --user="user" --password="password" --single-transaction --no-tablespaces --no-create-info --skip-triggers --host=host db a | gzip >> dump.gz',
-                'mysqldump --user="user" --password="password" --single-transaction --no-tablespaces --no-create-info --skip-triggers --host=host db b | gzip >> dump.gz',
-                "echo '/*!40014 SET FOREIGN_KEY_CHECKS=@ORG_FOREIGN_KEY_CHECKS */;' | gzip >> dump.gz",
-                "mysqldump --user=\"user\" --password=\"password\" --single-transaction --no-tablespaces --no-data --no-create-info --triggers --host=host db | sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g' | gzip >> triggers.gz"
+                $this->disableForeignKeyChecksCommand(),
+                $this->schemaCommand(),
+                $this->dataCommand("'a'"),
+                $this->dataCommand("'b'"),
+                $this->restoreForeignKeyChecksCommand(),
+                $this->triggersCommand()
             ],
             $this->commandAssembler->execute($this->connectionMock, $this->environmentMock, 'dump.gz', 'triggers.gz')
         );
@@ -80,10 +80,10 @@ class CommandAssemblerTest extends TestCase
         $this->tablesProviderMock->expects($this->any())->method('getEmptyTables')->willReturn(['a', 'b']);
         $this->assertSame(
             [
-                "echo '/*!40014 SET @ORG_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;' | gzip >> dump.gz",
-                "mysqldump --user=\"user\" --password=\"password\" --single-transaction --no-tablespaces --no-data --skip-triggers --host=host db | sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g' | gzip >> dump.gz",
-                "echo '/*!40014 SET FOREIGN_KEY_CHECKS=@ORG_FOREIGN_KEY_CHECKS */;' | gzip >> dump.gz",
-                "mysqldump --user=\"user\" --password=\"password\" --single-transaction --no-tablespaces --no-data --no-create-info --triggers --host=host db | sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g' | gzip >> triggers.gz"
+                $this->disableForeignKeyChecksCommand(),
+                $this->schemaCommand(),
+                $this->restoreForeignKeyChecksCommand(),
+                $this->triggersCommand()
             ],
             $this->commandAssembler->execute($this->connectionMock, $this->environmentMock, 'dump.gz', 'triggers.gz')
         );
@@ -97,14 +97,57 @@ class CommandAssemblerTest extends TestCase
         $this->tablesProviderMock->expects($this->any())->method('getEmptyTables')->willReturn(['b', 'e']);
         $this->assertSame(
             [
-                "echo '/*!40014 SET @ORG_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;' | gzip >> dump.gz",
-                "mysqldump --user=\"user\" --password=\"password\" --single-transaction --no-tablespaces --no-data --skip-triggers --host=host db --ignore-table=db.c --ignore-table=db.f | sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g' | gzip >> dump.gz",
-                'mysqldump --user="user" --password="password" --single-transaction --no-tablespaces --no-create-info --skip-triggers --host=host db a | gzip >> dump.gz',
-                'mysqldump --user="user" --password="password" --single-transaction --no-tablespaces --no-create-info --skip-triggers --host=host db d | gzip >> dump.gz',
-                "echo '/*!40014 SET FOREIGN_KEY_CHECKS=@ORG_FOREIGN_KEY_CHECKS */;' | gzip >> dump.gz",
-                "mysqldump --user=\"user\" --password=\"password\" --single-transaction --no-tablespaces --no-data --no-create-info --triggers --host=host db --ignore-table=db.c --ignore-table=db.f | sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g' | gzip >> triggers.gz"
+                $this->disableForeignKeyChecksCommand(),
+                $this->schemaCommand("--ignore-table='db.c' --ignore-table='db.f'"),
+                $this->dataCommand("'a'"),
+                $this->dataCommand("'d'"),
+                $this->restoreForeignKeyChecksCommand(),
+                $this->triggersCommand("--ignore-table='db.c' --ignore-table='db.f'")
             ],
             $this->commandAssembler->execute($this->connectionMock, $this->environmentMock, 'dump.gz', 'triggers.gz')
         );
+    }
+
+    private function disableForeignKeyChecksCommand(): string
+    {
+        return "echo '/*!40014 SET @ORG_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;'"
+            . " | gzip >> 'dump.gz'";
+    }
+
+    private function restoreForeignKeyChecksCommand(): string
+    {
+        return "echo '/*!40014 SET FOREIGN_KEY_CHECKS=@ORG_FOREIGN_KEY_CHECKS */;' | gzip >> 'dump.gz'";
+    }
+
+    private function schemaCommand(string $ignoredTables = ''): string
+    {
+        return $this->baseDumpCommand('--no-data --skip-triggers', $ignoredTables)
+            . ' ' . $this->definerReplacementCommand()
+            . " | gzip >> 'dump.gz'";
+    }
+
+    private function dataCommand(string $tables): string
+    {
+        return $this->baseDumpCommand('--no-create-info --skip-triggers', $tables)
+            . " | gzip >> 'dump.gz'";
+    }
+
+    private function triggersCommand(string $ignoredTables = ''): string
+    {
+        return $this->baseDumpCommand('--no-data --no-create-info --triggers', $ignoredTables)
+            . ' ' . $this->definerReplacementCommand()
+            . " | gzip >> 'triggers.gz'";
+    }
+
+    private function baseDumpCommand(string $options, string $suffix): string
+    {
+        return "mysqldump --user='user' --password='password' --single-transaction --no-tablespaces "
+            . "{$options} --host='host' 'db'"
+            . ($suffix ? " {$suffix}" : '');
+    }
+
+    private function definerReplacementCommand(): string
+    {
+        return "| sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g'";
     }
 }

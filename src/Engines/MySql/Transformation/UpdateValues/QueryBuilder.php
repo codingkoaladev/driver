@@ -20,7 +20,7 @@ class QueryBuilder
             return '';
         }
 
-        $query = "UPDATE ${table}";
+        $query = "UPDATE {$table}";
         foreach ($joins as $join) {
             if (!$join instanceof Join) {
                 throw new InvalidArgumentException('Join object expected.');

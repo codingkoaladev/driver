@@ -8,6 +8,8 @@ use Driver\Engines\ConnectionInterface;
 use Driver\Pipeline\Environment\EnvironmentInterface;
 
 use function array_diff;
+use function array_map;
+use function escapeshellarg;
 use function array_unshift;
 use function implode;
 use function in_array;
@@ -46,9 +48,10 @@ class CommandAssembler
         array_unshift(
             $commands,
             "echo '/*!40014 SET @ORG_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;'"
-            . " | gzip >> $dumpFile"
+            . ' | gzip >> ' . escapeshellarg($dumpFile)
         );
-        $commands[] = "echo '/*!40014 SET FOREIGN_KEY_CHECKS=@ORG_FOREIGN_KEY_CHECKS */;' | gzip >> $dumpFile";
+        $commands[] = "echo '/*!40014 SET FOREIGN_KEY_CHECKS=@ORG_FOREIGN_KEY_CHECKS */;'"
+            . ' | gzip >> ' . escapeshellarg($dumpFile);
         $commands[] = $this->getTriggersCommand($connection, $ignoredTables, $triggersDumpFile);
         return $commands;
     }
@@ -62,21 +65,21 @@ class CommandAssembler
         string $dumpFile
     ): string {
         $parts = [
-            "mysqldump --user=\"{$connection->getUser()}\"",
-            "--password=\"{$connection->getPassword()}\"",
+            'mysqldump --user=' . escapeshellarg($connection->getUser()),
+            '--password=' . escapeshellarg($connection->getPassword()),
             "--single-transaction",
             "--no-tablespaces",
             "--no-data",
             "--skip-triggers",
-            "--host={$connection->getHost()}",
-            $connection->getDatabase()
+            '--host=' . escapeshellarg($connection->getHost()),
+            escapeshellarg($connection->getDatabase())
         ];
         foreach ($ignoredTables as $table) {
-            $parts[] = "--ignore-table={$connection->getDatabase()}.{$table}";
+            $parts[] = '--ignore-table=' . escapeshellarg($connection->getDatabase() . '.' . $table);
         }
         $parts[] = "| sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g'";
         $parts[] = "| gzip";
-        $parts[] = ">> $dumpFile";
+        $parts[] = '>> ' . escapeshellarg($dumpFile);
         return implode(' ', $parts);
     }
 
@@ -86,18 +89,18 @@ class CommandAssembler
     private function getDataCommand(ConnectionInterface $connection, array $tables, string $dumpFile): string
     {
         $parts = [
-            "mysqldump --user=\"{$connection->getUser()}\"",
-            "--password=\"{$connection->getPassword()}\"",
+            'mysqldump --user=' . escapeshellarg($connection->getUser()),
+            '--password=' . escapeshellarg($connection->getPassword()),
             "--single-transaction",
             "--no-tablespaces",
             "--no-create-info",
             "--skip-triggers",
-            "--host={$connection->getHost()}",
-            $connection->getDatabase(),
-            implode(' ', $tables)
+            '--host=' . escapeshellarg($connection->getHost()),
+            escapeshellarg($connection->getDatabase()),
+            implode(' ', array_map('escapeshellarg', $tables))
         ];
         $parts[] = "| gzip";
-        $parts[] = ">> $dumpFile";
+        $parts[] = '>> ' . escapeshellarg($dumpFile);
         return implode(' ', $parts);
     }
 
@@ -107,22 +110,22 @@ class CommandAssembler
     private function getTriggersCommand(ConnectionInterface $connection, array $ignoredTables, string $dumpFile): string
     {
         $parts = [
-            "mysqldump --user=\"{$connection->getUser()}\"",
-            "--password=\"{$connection->getPassword()}\"",
+            'mysqldump --user=' . escapeshellarg($connection->getUser()),
+            '--password=' . escapeshellarg($connection->getPassword()),
             "--single-transaction",
             "--no-tablespaces",
             "--no-data",
             "--no-create-info",
             "--triggers",
-            "--host={$connection->getHost()}",
-            $connection->getDatabase()
+            '--host=' . escapeshellarg($connection->getHost()),
+            escapeshellarg($connection->getDatabase())
         ];
         foreach ($ignoredTables as $table) {
-            $parts[] = "--ignore-table={$connection->getDatabase()}.{$table}";
+            $parts[] = '--ignore-table=' . escapeshellarg($connection->getDatabase() . '.' . $table);
         }
         $parts[] = "| sed -E 's/DEFINER[ ]*=[ ]*`[^`]+`@`[^`]+`/DEFINER=CURRENT_USER/g'";
         $parts[] = "| gzip";
-        $parts[] = ">> $dumpFile";
+        $parts[] = '>> ' . escapeshellarg($dumpFile);
         return implode(' ', $parts);
     }
 }

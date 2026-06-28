@@ -8,45 +8,39 @@ use Aws\Result;
 use Aws\S3\S3Client;
 use Driver\Commands\CommandInterface;
 use Driver\Pipeline\Environment\EnvironmentInterface;
-use Driver\Pipeline\Environment\Manager as EnvironmentManager;
 use Driver\Pipeline\Transport\Status;
 use Driver\Pipeline\Transport\TransportInterface;
 use Driver\System\Configuration;
-use Driver\System\LocalConnectionLoader;
 use Driver\System\Logs\LoggerInterface;
 use Driver\System\S3FilenameFormatter;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
+use function escapeshellarg;
+
 class Download extends Command implements CommandInterface
 {
     public const DOWNLOAD_PATH_KEY = 'download_path';
 
-    private LocalConnectionLoader $localConnection;
     private Configuration $configuration;
     // phpcs:ignore SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification
     private array $properties;
     private LoggerInterface $logger;
     private ConsoleOutput $output;
-    private EnvironmentManager $environmentManager;
     private S3FilenameFormatter $s3FilenameFormatter;
 
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification
     public function __construct(
-        LocalConnectionLoader $localConnection,
         Configuration $configuration,
         LoggerInterface $logger,
         ConsoleOutput $output,
-        EnvironmentManager $environmentManager,
         S3FilenameFormatter $s3FilenameFormatter,
         array $properties = []
     ) {
-        $this->localConnection = $localConnection;
         $this->configuration = $configuration;
         $this->properties = $properties;
         $this->logger = $logger;
         $this->output = $output;
-        $this->environmentManager = $environmentManager;
         $this->s3FilenameFormatter = $s3FilenameFormatter;
 
         parent::__construct('s3-download');
@@ -66,7 +60,7 @@ class Download extends Command implements CommandInterface
             $date = date('Y-m-d');
             $client = $this->getS3Client();
 
-            $outputFile = "var/${date}" . $filename;
+            $outputFile = "var/{$date}" . $filename;
 
             $output = $client->getObject([
                 'Bucket' => $this->getBucket(),
@@ -88,7 +82,7 @@ class Download extends Command implements CommandInterface
             );
 
             if (strpos($this->getFileName($environment), ".gz") !== false) {
-                system("gunzip -f " . $outputFile);
+                system("gunzip -f " . escapeshellarg($outputFile));
                 $outputFile = str_replace(".gz", "", $outputFile);
             }
 

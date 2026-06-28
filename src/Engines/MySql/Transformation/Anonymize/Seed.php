@@ -39,7 +39,7 @@ class Seed
             }
 
             $placeholders = implode(', ', $bind);
-            $query = "INSERT INTO ${table} (${columns}) VALUES(${placeholders})";
+            $query = "INSERT INTO {$table} ({$columns}) VALUES({$placeholders})";
             $params = array_combine($bind, array_values($seed));
 
             $this->connection->getConnection()->prepare($query)->execute($params);
@@ -73,7 +73,7 @@ class Seed
         $table = self::FAKE_USER_TABLE;
 
         $this->connection->getConnection()->query(<<<TABLE
-CREATE TABLE ${table} (
+CREATE TABLE {$table} (
     id int auto_increment primary key,
     firstname VARCHAR(200),
     lastname VARCHAR(200),
